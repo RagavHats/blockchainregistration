@@ -3,6 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 require('dotenv').config();
 const User = require('./models/user')
+const {sendMail} = require('./mail.js')
 // connect to express
 const app = express()
 const cors = require('cors');
@@ -50,24 +51,53 @@ app.post('/signup', async (req , res) =>{
         })
     }
     // Create a User schema
-    const user = new User({
-        email ,
-        password ,
-        name ,
-    })
-    // Save the user
-    await user.save().then((response)=>{
-        return res.status(200).send({
-            status : true ,
-            message : "Account is created ! " ,
-            data : response 
-        }) 
-    }).catch((err)=>{
+    
+    try {
+        const user = new User({
+            email ,
+            password ,
+            name ,
+            is_verified : false
+        })
+        await user.save().then(async(response)=>{
+            let subject = "Block Chain Account Verification"
+            let html ="Greatings " + name + " <br><br> Happy to let you that your account is successfully created. <br><br>Kindly <a href='http://localhost:3000/verifyEmail/"+ response._id +"' >Click here to verify your Email address </a>" 
+            let sendVerificationMail = await sendMail(email, subject, html)
+            if(sendVerificationMail){
+                // Save the user
+                return res.status(200).send({
+                    status : true ,
+                    message : "Account is created ! Check your mail for verification " ,
+                    data : response 
+                }) 
+            }else{
+                let errorMessage = {
+                    response :{data:{message:"Try again !"}}
+                }
+                return res.status(400).send({
+                    status : false ,
+                    message : errorMessage
+                })
+            }
+           
+        }).catch((err)=>{
+            return res.status(400).send({
+                status : false ,
+                message : err
+            })
+        })
+        
+    } catch (error) {
         return res.status(400).send({
             status : false ,
-            message : err
+            message : error
         })
-    })
+    }
+    
+    
+
+
+
 })
 
 /* ************************* */
@@ -86,20 +116,29 @@ app.post('/login' , async (req , res) =>{
     //Check Email is registered or Not
     let checkEmail =  await User.findOne({email})
     if(checkEmail){
-        // Check the Username and password
-        let findExist = await User.findOne({email , password})
-        console.log("findExist" , findExist)
-        if(findExist){
-            return res.status(200).send({
-                status : true ,
-                message : "Login Success "
-            })
+        let checkEmailverified =  await User.findOne({email , is_verified : true})
+        if(checkEmailverified){
+           // Check the Username and password
+            let findExist = await User.findOne({email , password})
+            console.log("findExist" , findExist)
+            if(findExist){
+                return res.status(200).send({
+                    status : true ,
+                    message : "Login Success "
+                })
+            }else{
+                return res.status(400).send({
+                    status : false ,
+                    message : "Incorrect Email / Password !"
+                })
+            }
         }else{
             return res.status(400).send({
                 status : false ,
-                message : "Incorrect Email / Password !"
+                message : "Email ID is not verified . kindy check your mail  !"
             })
         }
+        
     }else{
         return res.status(400).send({
             status : false ,
@@ -107,4 +146,25 @@ app.post('/login' , async (req , res) =>{
         })
     }
     
+})
+
+
+/* *********VERIFY EMAIL * */
+
+app.post('/verifyemail/:id' , async (req , res)=>{
+    const {id} = req.params
+    var _id =  id;
+    var update = {name :{is_verified : true}};
+    const data = await User.findByIdAndUpdate(_id, { is_verified: true });
+    if(data){
+        return res.status(200).send({
+            status : true ,
+            message : "Verified"
+        })
+    }else{
+        return res.status(400).send({
+            status : false ,
+            message : "Incorrect Email !"
+        })
+    }
 })

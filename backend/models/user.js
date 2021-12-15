@@ -12,7 +12,10 @@ const userSchema = new Schema({
     } ,
     name : {
         type : String
-    } 
+    } ,
+    is_verified :{
+        type : Boolean
+    }
 } , { timestamps : true })
 
 const User = mongoose.model('User', userSchema )
